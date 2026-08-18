@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ExtensionInspector from "@/features/settings/ExtensionInspector"
 import { ColorField, Field, SliderField, ToggleRow } from "@/features/settings/fields"
 import {
   PRESETS,
@@ -68,6 +69,7 @@ export default function PageInspector() {
         <TabsList className="w-full">
           <TabsTrigger value="background">Background</TabsTrigger>
           <TabsTrigger value="style">Style</TabsTrigger>
+          <TabsTrigger value="extension">Extension</TabsTrigger>
         </TabsList>
 
         <TabsContent value="background" className="space-y-5 pt-4">
@@ -191,6 +193,10 @@ export default function PageInspector() {
             checked={page.glass}
             onChange={(v) => setPage("glass", v)}
           />
+        </TabsContent>
+
+        <TabsContent value="extension" className="pt-4">
+          <ExtensionInspector />
         </TabsContent>
       </Tabs>
     </div>

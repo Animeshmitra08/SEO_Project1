@@ -31,8 +31,24 @@ export type PageConfig = {
   glass: boolean
 }
 
+/** Everything that ends up in the exported manifest.json and assets/ folder. */
+export type ExtensionConfig = {
+  name: string
+  shortName: string
+  description: string
+  version: string
+  homepageUrl: string
+  /** Data URL of the uploaded logo. Empty means "generate one from the accent". */
+  logo: string
+  /** File name of the upload, shown in the inspector. */
+  logoName: string
+  /** Whether the extension also gets a toolbar button. */
+  toolbarIcon: boolean
+}
+
 type DesignerActions = {
   setPage: <K extends keyof PageConfig>(key: K, value: PageConfig[K]) => void
+  setExtension: <K extends keyof ExtensionConfig>(key: K, value: ExtensionConfig[K]) => void
   applyPreset: (name: PresetName) => void
   reset: () => void
 
@@ -61,6 +77,7 @@ type DesignerActions = {
 
 export type DesignerState = {
   page: PageConfig
+  extension: ExtensionConfig
   nodes: CanvasNode[]
   selectedId: string | null
 } & DesignerActions
@@ -79,6 +96,17 @@ const defaultPage: PageConfig = {
   accent: "#8b5cf6",
   radius: 999,
   glass: true,
+}
+
+const defaultExtension: ExtensionConfig = {
+  name: "My New Tab",
+  shortName: "",
+  description: "A custom new tab page built with Extension Designer.",
+  version: "1.0.0",
+  homepageUrl: "",
+  logo: "",
+  logoName: "",
+  toolbarIcon: false,
 }
 
 /** The starting layout: a centred clock / greeting / search / links stack. */
@@ -172,15 +200,25 @@ const clamp = (value: number, min: number, max: number) =>
 
 export const useDesignerStore = create<DesignerState>((set) => ({
   page: defaultPage,
+  extension: defaultExtension,
   nodes: defaultNodes(),
   selectedId: null,
 
   setPage: (key, value) => set((state) => ({ page: { ...state.page, [key]: value } })),
 
+  setExtension: (key, value) =>
+    set((state) => ({ extension: { ...state.extension, [key]: value } })),
+
   applyPreset: (name) =>
     set((state) => ({ page: { ...state.page, ...PRESETS[name].config } })),
 
-  reset: () => set({ page: defaultPage, nodes: defaultNodes(), selectedId: null }),
+  reset: () =>
+    set({
+      page: defaultPage,
+      extension: defaultExtension,
+      nodes: defaultNodes(),
+      selectedId: null,
+    }),
 
   select: (id) => set({ selectedId: id }),
 

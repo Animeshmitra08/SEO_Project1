@@ -8,7 +8,11 @@ import {
   type NodeOf,
 } from "@/lib/nodes"
 import { ANALOG_HANDS, analogFaceSvg, isAnalog } from "@/lib/templates"
-import { useDesignerStore, type PageConfig } from "@/store/useDesignerStore"
+import {
+  useDesignerStore,
+  type ExtensionConfig,
+  type PageConfig,
+} from "@/store/useDesignerStore"
 
 const escapeHtml = (value: string) =>
   value
@@ -32,7 +36,7 @@ function safeUrl(url: string): string {
 }
 
 /** surfaceCss() as a CSS declaration string, with the vendor-prefixed blur browsers still want. */
-function surfaceDeclarations(page: PageConfig, indent = "      "): string {
+function surfaceDeclarations(page: PageConfig, indent = "  "): string {
   const surface = surfaceCss(page)
   return [
     `background: ${surface.background}`,
@@ -314,8 +318,11 @@ function nodeBodyHtml(node: CanvasNode, page: PageConfig): string {
 
 /* ---------------- runtime script ---------------- */
 
-/** Only emitted when the page actually contains something time-dependent. */
-function runtimeScript(nodes: CanvasNode[]): string {
+/**
+ * newtab.js — keeps clocks, dates, greetings, and countdowns current.
+ * Emitted as a real file because MV3's CSP forbids inline script.
+ */
+function generateJS(nodes: CanvasNode[]): string {
   const live = nodes.filter(
     (n) =>
       n.type === "clock" ||
@@ -323,128 +330,361 @@ function runtimeScript(nodes: CanvasNode[]): string {
       n.type === "countdown" ||
       (n.type === "greeting" && n.props.dynamic)
   )
-  if (live.length === 0) return ""
+  if (live.length === 0) {
+    return "/* This layout has no live widgets, so there is nothing to update. */\n"
+  }
 
   // A moving second hand or a seconds readout needs a per-second tick.
   const needsSeconds = nodes.some((n) => n.type === "clock" && n.props.seconds)
 
-  return `<script>
-    (function () {
-      var live = document.querySelectorAll("[data-kind]");
+  return `(function () {
+  var live = document.querySelectorAll("[data-kind]");
 
-      function pad(value) { return String(value).padStart(2, "0"); }
+  function pad(value) { return String(value).padStart(2, "0"); }
 
-      function greeting(hour) {
-        if (hour < 12) return "Good morning";
-        if (hour < 18) return "Good afternoon";
-        return "Good evening";
-      }
+  function greeting(hour) {
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  }
 
-      /* Mirrors clockParts() in src/lib/templates.ts. */
-      function clockParts(date, hour12) {
-        var hours = date.getHours();
-        var meridiem = hours < 12 ? "AM" : "PM";
-        if (hour12) { hours = hours % 12; if (hours === 0) hours = 12; }
-        return {
-          h: pad(hours),
-          m: pad(date.getMinutes()),
-          s: pad(date.getSeconds()),
-          meridiem: hour12 ? meridiem : ""
-        };
-      }
+  /* Mirrors clockParts() in src/lib/templates.ts. */
+  function clockParts(date, hour12) {
+    var hours = date.getHours();
+    var meridiem = hours < 12 ? "AM" : "PM";
+    if (hour12) { hours = hours % 12; if (hours === 0) hours = 12; }
+    return {
+      h: pad(hours),
+      m: pad(date.getMinutes()),
+      s: pad(date.getSeconds()),
+      meridiem: hour12 ? meridiem : ""
+    };
+  }
 
-      /* Mirrors countdownParts() in src/lib/templates.ts. */
-      function countdownParts(target, now) {
-        var end = new Date(target + "T00:00:00");
-        if (isNaN(end.getTime())) return { wholeDays: 0, days: 0, hours: 0, minutes: 0, past: false };
-        var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        var diff = end.getTime() - now.getTime();
-        var abs = Math.abs(diff);
-        return {
-          wholeDays: Math.round((end.getTime() - startOfToday.getTime()) / 86400000),
-          days: Math.floor(abs / 86400000),
-          hours: Math.floor(abs / 3600000) % 24,
-          minutes: Math.floor(abs / 60000) % 60,
-          past: diff < 0
-        };
-      }
+  /* Mirrors countdownParts() in src/lib/templates.ts. */
+  function countdownParts(target, now) {
+    var end = new Date(target + "T00:00:00");
+    if (isNaN(end.getTime())) return { wholeDays: 0, days: 0, hours: 0, minutes: 0, past: false };
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diff = end.getTime() - now.getTime();
+    var abs = Math.abs(diff);
+    return {
+      wholeDays: Math.round((end.getTime() - startOfToday.getTime()) / 86400000),
+      days: Math.floor(abs / 86400000),
+      hours: Math.floor(abs / 3600000) % 24,
+      minutes: Math.floor(abs / 60000) % 60,
+      past: diff < 0
+    };
+  }
 
-      /* Templates expose only the slots they use; missing ones are skipped. */
-      function fill(root, slot, text) {
-        var el = root.querySelector('[data-slot="' + slot + '"]');
-        if (el) el.textContent = text;
-      }
+  /* Templates expose only the slots they use; missing ones are skipped. */
+  function fill(root, slot, text) {
+    var el = root.querySelector('[data-slot="' + slot + '"]');
+    if (el) el.textContent = text;
+  }
 
-      function render() {
-        var now = new Date();
+  function render() {
+    var now = new Date();
 
-        for (var i = 0; i < live.length; i++) {
-          var el = live[i];
-          var kind = el.getAttribute("data-kind");
+    for (var i = 0; i < live.length; i++) {
+      var el = live[i];
+      var kind = el.getAttribute("data-kind");
 
-          if (kind === "clock") {
-            var hour12 = el.getAttribute("data-hour12") === "1";
-            var withSeconds = el.getAttribute("data-seconds") === "1";
+      if (kind === "clock") {
+        var hour12 = el.getAttribute("data-hour12") === "1";
+        var withSeconds = el.getAttribute("data-seconds") === "1";
 
-            if (el.getAttribute("data-analog") === "1") {
-              var s = now.getSeconds(), m = now.getMinutes(), h = now.getHours() % 12;
-              var angles = { hour: h * 30 + m * 0.5, minute: m * 6 + s * 0.1, second: s * 6 };
-              var hands = el.querySelectorAll("[data-hand]");
-              for (var j = 0; j < hands.length; j++) {
-                var name = hands[j].getAttribute("data-hand");
-                hands[j].setAttribute("transform", "rotate(" + angles[name] + " 50 50)");
-              }
-            } else {
-              var parts = clockParts(now, hour12);
-              var opts = { hour: "2-digit", minute: "2-digit", hour12: hour12 };
-              if (withSeconds) opts.second = "2-digit";
-              fill(el, "time", now.toLocaleTimeString([], opts));
-              fill(el, "hm", parts.h + ":" + parts.m + (withSeconds ? ":" + parts.s : ""));
-              fill(el, "h", parts.h);
-              fill(el, "m", parts.m);
-              fill(el, "s", parts.s);
-              fill(el, "meridiem", parts.meridiem);
-            }
-          } else if (kind === "date") {
-            fill(el, "full", now.toLocaleDateString([], { dateStyle: el.getAttribute("data-style") }));
-            fill(el, "weekday", now.toLocaleDateString([], { weekday: "long" }));
-            fill(el, "weekdayShort", now.toLocaleDateString([], { weekday: "short" }));
-            fill(el, "day", String(now.getDate()));
-            fill(el, "month", now.toLocaleDateString([], { month: "long" }));
-            fill(el, "monthShort", now.toLocaleDateString([], { month: "short" }));
-            fill(el, "year", String(now.getFullYear()));
-          } else if (kind === "greeting") {
-            if (el.getAttribute("data-dynamic") === "1") el.textContent = greeting(now.getHours());
-          } else if (kind === "countdown") {
-            var label = el.getAttribute("data-label");
-            var cd = countdownParts(el.getAttribute("data-target"), now);
-            fill(el, "count", String(Math.abs(cd.wholeDays)));
-            fill(el, "countLabel", (cd.wholeDays >= 0 ? " days until " : " days since ") + label);
-            fill(el, "days", pad(cd.days));
-            fill(el, "hours", pad(cd.hours));
-            fill(el, "minutes", pad(cd.minutes));
-            fill(el, "untilLabel", (cd.past ? "since " : "until ") + label);
+        if (el.getAttribute("data-analog") === "1") {
+          var s = now.getSeconds(), m = now.getMinutes(), h = now.getHours() % 12;
+          var angles = { hour: h * 30 + m * 0.5, minute: m * 6 + s * 0.1, second: s * 6 };
+          var hands = el.querySelectorAll("[data-hand]");
+          for (var j = 0; j < hands.length; j++) {
+            var name = hands[j].getAttribute("data-hand");
+            hands[j].setAttribute("transform", "rotate(" + angles[name] + " 50 50)");
           }
+        } else {
+          var parts = clockParts(now, hour12);
+          var opts = { hour: "2-digit", minute: "2-digit", hour12: hour12 };
+          if (withSeconds) opts.second = "2-digit";
+          fill(el, "time", now.toLocaleTimeString([], opts));
+          fill(el, "hm", parts.h + ":" + parts.m + (withSeconds ? ":" + parts.s : ""));
+          fill(el, "h", parts.h);
+          fill(el, "m", parts.m);
+          fill(el, "s", parts.s);
+          fill(el, "meridiem", parts.meridiem);
         }
+      } else if (kind === "date") {
+        fill(el, "full", now.toLocaleDateString([], { dateStyle: el.getAttribute("data-style") }));
+        fill(el, "weekday", now.toLocaleDateString([], { weekday: "long" }));
+        fill(el, "weekdayShort", now.toLocaleDateString([], { weekday: "short" }));
+        fill(el, "day", String(now.getDate()));
+        fill(el, "month", now.toLocaleDateString([], { month: "long" }));
+        fill(el, "monthShort", now.toLocaleDateString([], { month: "short" }));
+        fill(el, "year", String(now.getFullYear()));
+      } else if (kind === "greeting") {
+        if (el.getAttribute("data-dynamic") === "1") el.textContent = greeting(now.getHours());
+      } else if (kind === "countdown") {
+        var label = el.getAttribute("data-label");
+        var cd = countdownParts(el.getAttribute("data-target"), now);
+        fill(el, "count", String(Math.abs(cd.wholeDays)));
+        fill(el, "countLabel", (cd.wholeDays >= 0 ? " days until " : " days since ") + label);
+        fill(el, "days", pad(cd.days));
+        fill(el, "hours", pad(cd.hours));
+        fill(el, "minutes", pad(cd.minutes));
+        fill(el, "untilLabel", (cd.past ? "since " : "until ") + label);
       }
+    }
+  }
 
-      render();
-      setInterval(render, ${needsSeconds ? 1000 : 15000});
-    })();
-  </script>`
+  render();
+  setInterval(render, ${needsSeconds ? 1000 : 15000});
+})();
+`
 }
 
 /* ---------------- page ---------------- */
 
-export function generateHTML(
-  page: PageConfig = useDesignerStore.getState().page,
-  nodes: CanvasNode[] = useDesignerStore.getState().nodes
-): string {
+/** newtab.css — the whole stylesheet, derived from the page's design tokens. */
+export function generateCSS(page: PageConfig = useDesignerStore.getState().page): string {
   const background = backgroundCss({
     ...page,
     backgroundImage: escapeCssUrl(page.backgroundImage),
   })
 
+  return `* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: ${background};
+  font-family: ${fontStack(page)};
+  color: ${page.textColor};
+  -webkit-font-smoothing: antialiased;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, ${page.overlay / 100});
+  pointer-events: none;
+}
+
+.stage { position: relative; height: 100%; width: 100%; }
+
+/* Nodes are centred on their stored percentage coordinates. */
+.node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.clock { font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.muted { opacity: 0.7; }
+.count { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* --- clock templates --- */
+.clock-stacked {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
+}
+
+.clock-tiles { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+
+.clock-tile {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  border-radius: ${Math.min(page.radius, 16)}px;
+  ${surfaceDeclarations(page)};
+}
+
+.clock-mono {
+  font-family: ${FONT_STACKS.mono};
+  letter-spacing: 0.06em;
+}
+
+/* --- date templates --- */
+.date-stacked { line-height: 1.15; }
+.date-big { font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+
+.date-badge {
+  display: inline-block;
+  border-radius: ${page.radius}px;
+  ${surfaceDeclarations(page)};
+}
+
+.date-cal {
+  display: inline-block;
+  overflow: hidden;
+  text-align: center;
+  border-radius: ${Math.min(page.radius, 16)}px;
+  ${surfaceDeclarations(page)};
+}
+
+.date-cal-head { font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* --- countdown templates --- */
+.cd-tile {
+  display: inline-block;
+  padding: 1rem 1.5rem;
+  border-radius: ${Math.min(page.radius, 20)}px;
+  ${surfaceDeclarations(page)};
+}
+
+.cd-units { display: flex; align-items: stretch; justify-content: center; gap: 0.5rem; }
+
+.cd-unit {
+  flex: 1;
+  border-radius: ${Math.min(page.radius, 14)}px;
+  ${surfaceDeclarations(page)};
+}
+
+.cd-unit-value { font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.cd-unit-label {
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+}
+
+.quote { margin: 0; }
+.quote blockquote { margin: 0; font-style: italic; line-height: 1.6; }
+.quote figcaption { margin-top: 0.5rem; opacity: 0.6; }
+
+.note { margin: 0; opacity: 0.8; line-height: 1.6; white-space: pre-wrap; }
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  border-radius: ${page.radius}px;
+  ${surfaceDeclarations(page)};
+  transition: box-shadow 0.2s ease;
+}
+
+.search:focus-within { box-shadow: 0 0 0 3px ${page.accent}59; }
+
+.search-icon { width: 1.25rem; height: 1.25rem; flex-shrink: 0; opacity: 0.6; }
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.search input::placeholder { color: currentColor; opacity: 0.5; }
+
+/* Surfaced widgets: weather and recent pages. */
+.widget {
+  text-align: left;
+  border-radius: ${Math.min(page.radius, 24)}px;
+  ${surfaceDeclarations(page)};
+}
+
+.weather { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
+.weather-compact { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+
+.weather-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+
+.weather-detailed { padding: 1rem 1.25rem; }
+.weather-headline { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+.weather-eyebrow {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+}
+
+.weather-split {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+.weather-icon { flex-shrink: 0; opacity: 0.9; }
+.weather-body { min-width: 0; flex: 1; }
+.weather-temp { font-weight: 600; font-variant-numeric: tabular-nums; }
+.weather-condition { opacity: 0.7; }
+.weather-location { opacity: 0.5; }
+.weather-range { opacity: 0.5; font-variant-numeric: tabular-nums; }
+
+.recent { padding: 0.75rem 1rem; }
+.recent-heading {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.25rem 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: opacity 0.15s ease;
+}
+
+.recent-item:hover { opacity: 0.75; }
+
+.recent-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.recent-text { min-width: 0; flex: 1; }
+.recent-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-host { display: block; opacity: 0.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.625rem; }
+
+.links a {
+  padding: 0.5rem 1rem;
+  border-radius: ${Math.min(page.radius, 16)}px;
+  ${surfaceDeclarations(page)};
+  color: inherit;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.links a:hover { transform: translateY(-1px); border-color: ${page.accent}; }
+`
+}
+
+/** newtab.html — markup only; styling and behaviour live in sibling files. */
+export function generateHTML(
+  page: PageConfig = useDesignerStore.getState().page,
+  nodes: CanvasNode[] = useDesignerStore.getState().nodes,
+  extension: ExtensionConfig = useDesignerStore.getState().extension
+): string {
   const visible = nodes.filter((node) => !node.hidden)
 
   const placed = visible
@@ -463,234 +703,9 @@ export function generateHTML(
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>New Tab</title>
-  <style>
-    * { box-sizing: border-box; }
-
-    html, body { height: 100%; }
-
-    body {
-      margin: 0;
-      background: ${background};
-      font-family: ${fontStack(page)};
-      color: ${page.textColor};
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, ${page.overlay / 100});
-      pointer-events: none;
-    }
-
-    .stage { position: relative; height: 100%; width: 100%; }
-
-    /* Nodes are centred on their stored percentage coordinates. */
-    .node {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      text-align: center;
-    }
-
-    .clock { font-weight: 600; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1.1; }
-    .muted { opacity: 0.7; }
-    .count { font-weight: 600; font-variant-numeric: tabular-nums; }
-
-    /* --- clock templates --- */
-    .clock-stacked {
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-      line-height: 0.92;
-    }
-
-    .clock-tiles { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-
-    .clock-tile {
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      line-height: 1;
-      border-radius: ${Math.min(page.radius, 16)}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .clock-mono {
-      font-family: ${FONT_STACKS.mono};
-      letter-spacing: 0.06em;
-    }
-
-    /* --- date templates --- */
-    .date-stacked { line-height: 1.15; }
-    .date-big { font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-
-    .date-badge {
-      display: inline-block;
-      border-radius: ${page.radius}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .date-cal {
-      display: inline-block;
-      overflow: hidden;
-      text-align: center;
-      border-radius: ${Math.min(page.radius, 16)}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .date-cal-head { font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    /* --- countdown templates --- */
-    .cd-tile {
-      display: inline-block;
-      padding: 1rem 1.5rem;
-      border-radius: ${Math.min(page.radius, 20)}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .cd-units { display: flex; align-items: stretch; justify-content: center; gap: 0.5rem; }
-
-    .cd-unit {
-      flex: 1;
-      border-radius: ${Math.min(page.radius, 14)}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .cd-unit-value { font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
-    .cd-unit-label {
-      margin-top: 0.25rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      opacity: 0.5;
-    }
-
-    .quote { margin: 0; }
-    .quote blockquote { margin: 0; font-style: italic; line-height: 1.6; }
-    .quote figcaption { margin-top: 0.5rem; opacity: 0.6; }
-
-    .note { margin: 0; opacity: 0.8; line-height: 1.6; white-space: pre-wrap; }
-
-    .search {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      width: 100%;
-      padding: 0.875rem 1.25rem;
-      border-radius: ${page.radius}px;
-      ${surfaceDeclarations(page)};
-      transition: box-shadow 0.2s ease;
-    }
-
-    .search:focus-within { box-shadow: 0 0 0 3px ${page.accent}59; }
-
-    .search-icon { width: 1.25rem; height: 1.25rem; flex-shrink: 0; opacity: 0.6; }
-
-    .search input {
-      flex: 1;
-      min-width: 0;
-      border: 0;
-      outline: none;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      font-size: 1rem;
-    }
-
-    .search input::placeholder { color: currentColor; opacity: 0.5; }
-
-    /* Surfaced widgets: weather and recent pages. */
-    .widget {
-      text-align: left;
-      border-radius: ${Math.min(page.radius, 24)}px;
-      ${surfaceDeclarations(page)};
-    }
-
-    .weather { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; }
-    .weather-compact { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-
-    .weather-stacked {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 1rem 1.25rem;
-      text-align: center;
-    }
-
-    .weather-detailed { padding: 1rem 1.25rem; }
-    .weather-headline { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
-    .weather-eyebrow {
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      opacity: 0.5;
-    }
-
-    .weather-split {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 0.75rem;
-      padding-top: 0.5rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-      font-variant-numeric: tabular-nums;
-      opacity: 0.6;
-    }
-    .weather-icon { flex-shrink: 0; opacity: 0.9; }
-    .weather-body { min-width: 0; flex: 1; }
-    .weather-temp { font-weight: 600; font-variant-numeric: tabular-nums; }
-    .weather-condition { opacity: 0.7; }
-    .weather-location { opacity: 0.5; }
-    .weather-range { opacity: 0.5; font-variant-numeric: tabular-nums; }
-
-    .recent { padding: 0.75rem 1rem; }
-    .recent-heading {
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      opacity: 0.5;
-    }
-
-    .recent-item {
-      display: flex;
-      align-items: center;
-      gap: 0.625rem;
-      padding: 0.25rem 0;
-      color: inherit;
-      text-decoration: none;
-      border-radius: 6px;
-      transition: opacity 0.15s ease;
-    }
-
-    .recent-item:hover { opacity: 0.75; }
-
-    .recent-avatar {
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-      border-radius: 4px;
-      font-weight: 600;
-      background: rgba(255, 255, 255, 0.14);
-    }
-
-    .recent-text { min-width: 0; flex: 1; }
-    .recent-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .recent-host { display: block; opacity: 0.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.625rem; }
-
-    .links a {
-      padding: 0.5rem 1rem;
-      border-radius: ${Math.min(page.radius, 16)}px;
-      ${surfaceDeclarations(page, "      ")};
-      color: inherit;
-      font-size: 0.875rem;
-      text-decoration: none;
-      transition: transform 0.15s ease, border-color 0.15s ease;
-    }
-
-    .links a:hover { transform: translateY(-1px); border-color: ${page.accent}; }
-  </style>
+  <title>${escapeHtml(extension.name || "New Tab")}</title>
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="stylesheet" href="newtab.css" />
 </head>
 <body>
   ${page.overlay > 0 ? `<div class="overlay"></div>` : ""}
@@ -699,21 +714,15 @@ export function generateHTML(
     ${placed}
   </main>
 
-  ${runtimeScript(visible)}
+  <script src="newtab.js"></script>
 </body>
 </html>
 `
 }
 
-/** Build the page from current state and save it as newtab.html. */
-export function downloadHtml(): void {
-  const blob = new Blob([generateHTML()], { type: "text/html" })
-  const url = URL.createObjectURL(blob)
-
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = "newtab.html"
-  anchor.click()
-
-  URL.revokeObjectURL(url)
+/** newtab.js for the current design. */
+export function generateNewtabJS(
+  nodes: CanvasNode[] = useDesignerStore.getState().nodes
+): string {
+  return generateJS(nodes.filter((node) => !node.hidden))
 }

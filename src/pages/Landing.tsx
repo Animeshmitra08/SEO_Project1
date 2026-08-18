@@ -51,7 +51,7 @@ const features = [
 const steps = [
   { n: "01", title: "Pick a preset", body: "Start from a theme that already looks good, then make it yours." },
   { n: "02", title: "Tune the details", body: "Background, greeting, clock, search engine, quick links, typography." },
-  { n: "03", title: "Export & install", body: "Download newtab.html and point your extension's new-tab page at it." },
+  { n: "03", title: "Export & install", body: "Download the zipped extension — manifest, page, and icons — and load it unpacked." },
 ]
 
 export default function Landing() {
