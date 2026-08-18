@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import type { TemplateDef } from "@/lib/templates"
 
 export function Field({
   label,
@@ -18,6 +19,59 @@ export function Field({
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       {children}
       {hint && <p className="text-xs leading-relaxed text-muted-foreground/70">{hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * Template chooser. Entries carrying a `group` are rendered under that heading,
+ * which is what gives Clock its Analog / Digital split.
+ */
+export function TemplatePicker<T extends string>({
+  templates,
+  value,
+  onChange,
+}: {
+  templates: TemplateDef<T>[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  const groups = new Map<string, TemplateDef<T>[]>()
+  for (const template of templates) {
+    const key = template.group ?? ""
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(template)
+  }
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs font-medium text-muted-foreground">Template</Label>
+
+      {[...groups].map(([group, entries]) => (
+        <div key={group} className="space-y-1.5">
+          {group && (
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+              {group}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-1.5">
+            {entries.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => onChange(template.id)}
+                className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                  value === template.id
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card hover:border-foreground/25 hover:bg-accent"
+                }`}
+              >
+                {template.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

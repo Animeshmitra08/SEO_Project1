@@ -12,6 +12,12 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import type { WeatherCondition } from "@/lib/icons"
+import type {
+  ClockTemplate,
+  CountdownTemplate,
+  DateTemplate,
+  WeatherTemplate,
+} from "@/lib/templates"
 
 export type SearchEngine = "google" | "bing" | "duckduckgo"
 
@@ -43,15 +49,16 @@ export type RecentPage = {
 
 /** Props carried by each component type. Keys here define the set of valid types. */
 export type NodePropsMap = {
-  clock: { seconds: boolean; hour12: boolean; size: number }
-  date: { dateStyle: DateStyle; size: number }
+  clock: { template: ClockTemplate; seconds: boolean; hour12: boolean; size: number }
+  date: { template: DateTemplate; dateStyle: DateStyle; size: number }
   greeting: { text: string; dynamic: boolean; size: number }
   search: { placeholder: string; engine: SearchEngine }
   links: { items: QuickLink[] }
   quote: { text: string; author: string; size: number }
   note: { text: string; size: number }
-  countdown: { label: string; target: string; size: number }
+  countdown: { template: CountdownTemplate; label: string; target: string; size: number }
   weather: {
+    template: WeatherTemplate
     location: string
     temperature: number
     unit: TemperatureUnit
@@ -103,7 +110,12 @@ export const COMPONENT_CATALOG: { [K in ComponentType]: CatalogEntry<K> }[Compon
     description: "Live time, updates itself",
     icon: Clock,
     defaultWidth: 60,
-    defaultProps: () => ({ seconds: false, hour12: true, size: 60 }),
+    defaultProps: () => ({
+      template: "digital-plain",
+      seconds: false,
+      hour12: true,
+      size: 60,
+    }),
   },
   {
     type: "date",
@@ -111,7 +123,7 @@ export const COMPONENT_CATALOG: { [K in ComponentType]: CatalogEntry<K> }[Compon
     description: "Today's date",
     icon: Calendar,
     defaultWidth: 60,
-    defaultProps: () => ({ dateStyle: "full", size: 18 }),
+    defaultProps: () => ({ template: "plain", dateStyle: "full", size: 18 }),
   },
   {
     type: "greeting",
@@ -170,6 +182,7 @@ export const COMPONENT_CATALOG: { [K in ComponentType]: CatalogEntry<K> }[Compon
     icon: Timer,
     defaultWidth: 40,
     defaultProps: () => ({
+      template: "plain",
       label: "Launch day",
       target: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
       size: 18,
@@ -182,6 +195,7 @@ export const COMPONENT_CATALOG: { [K in ComponentType]: CatalogEntry<K> }[Compon
     icon: CloudSun,
     defaultWidth: 28,
     defaultProps: () => ({
+      template: "card",
       location: "San Francisco",
       temperature: 18,
       unit: "c",

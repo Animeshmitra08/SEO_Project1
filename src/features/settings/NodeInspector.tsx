@@ -10,7 +10,18 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { Field, SliderField, ToggleRow } from "@/features/settings/fields"
+import { Field, SliderField, TemplatePicker, ToggleRow } from "@/features/settings/fields"
+import {
+  CLOCK_TEMPLATES,
+  COUNTDOWN_TEMPLATES,
+  DATE_TEMPLATES,
+  WEATHER_TEMPLATES,
+  isAnalog,
+  type ClockTemplate,
+  type CountdownTemplate,
+  type DateTemplate,
+  type WeatherTemplate,
+} from "@/lib/templates"
 import { WEATHER_CONDITIONS, WEATHER_LABELS, type WeatherCondition } from "@/lib/icons"
 import {
   SEARCH_ENGINES,
@@ -130,20 +141,31 @@ function NodeProps({ node }: { node: CanvasNode }) {
 function ClockProps({ node }: { node: NodeOf<"clock"> }) {
   const updateProps = useDesignerStore((s) => s.updateProps)
 
+  const analog = isAnalog(node.props.template)
+
   return (
     <div className="space-y-5">
+      <TemplatePicker
+        templates={CLOCK_TEMPLATES}
+        value={node.props.template}
+        onChange={(template: ClockTemplate) => updateProps(node, { template })}
+      />
+
       <ToggleRow
-        label="Show seconds"
+        label={analog ? "Second hand" : "Show seconds"}
         checked={node.props.seconds}
         onChange={(seconds) => updateProps(node, { seconds })}
       />
-      <ToggleRow
-        label="12-hour clock"
-        checked={node.props.hour12}
-        onChange={(hour12) => updateProps(node, { hour12 })}
-      />
+      {/* A dial has no AM/PM to show, so the toggle only applies to digital faces. */}
+      {!analog && (
+        <ToggleRow
+          label="12-hour clock"
+          checked={node.props.hour12}
+          onChange={(hour12) => updateProps(node, { hour12 })}
+        />
+      )}
       <SliderField
-        label="Font size"
+        label={analog ? "Dial size" : "Font size"}
         value={node.props.size}
         min={16}
         max={140}
@@ -157,8 +179,17 @@ function ClockProps({ node }: { node: NodeOf<"clock"> }) {
 function DateProps({ node }: { node: NodeOf<"date"> }) {
   const updateProps = useDesignerStore((s) => s.updateProps)
 
+  const usesFormat = node.props.template === "plain" || node.props.template === "badge"
+
   return (
     <div className="space-y-5">
+      <TemplatePicker
+        templates={DATE_TEMPLATES}
+        value={node.props.template}
+        onChange={(template: DateTemplate) => updateProps(node, { template })}
+      />
+
+      {usesFormat && (
       <Field label="Format">
         <Select
           value={node.props.dateStyle}
@@ -176,6 +207,7 @@ function DateProps({ node }: { node: NodeOf<"date"> }) {
           </SelectContent>
         </Select>
       </Field>
+      )}
       <SliderField
         label="Font size"
         value={node.props.size}
@@ -359,6 +391,12 @@ function WeatherProps({ node }: { node: NodeOf<"weather"> }) {
         weather API later without touching the layout.
       </p>
 
+      <TemplatePicker
+        templates={WEATHER_TEMPLATES}
+        value={node.props.template}
+        onChange={(template: WeatherTemplate) => updateProps(node, { template })}
+      />
+
       <Field label="Location">
         <Input
           value={node.props.location}
@@ -540,6 +578,12 @@ function CountdownProps({ node }: { node: NodeOf<"countdown"> }) {
 
   return (
     <div className="space-y-5">
+      <TemplatePicker
+        templates={COUNTDOWN_TEMPLATES}
+        value={node.props.template}
+        onChange={(template: CountdownTemplate) => updateProps(node, { template })}
+      />
+
       <Field label="Label">
         <Input
           value={node.props.label}
