@@ -13,8 +13,10 @@ export function backgroundCss(page: PageConfig): string {
     case "gradient":
       return `linear-gradient(${page.gradientAngle}deg, ${page.gradientFrom}, ${page.gradientTo})`
     case "image":
+      // The solid colour sits under the image as the final layer, so a URL that
+      // fails to load degrades to the chosen colour instead of nothing at all.
       return page.backgroundImage
-        ? `url("${page.backgroundImage}") center / cover no-repeat`
+        ? `url("${page.backgroundImage}") center / cover no-repeat, ${page.background}`
         : page.background
     default:
       return page.background

@@ -12,10 +12,12 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import type { WeatherCondition } from "@/lib/icons"
+import type { LinkIconChoice } from "@/lib/linkIcons"
 import type {
   ClockTemplate,
   CountdownTemplate,
   DateTemplate,
+  LinksTemplate,
   WeatherTemplate,
 } from "@/lib/templates"
 
@@ -34,6 +36,8 @@ export type QuickLink = {
   id: string
   label: string
   url: string
+  /** Glyph shown by the icon-only templates. "auto" picks one from the URL. */
+  icon: LinkIconChoice
 }
 
 export type DateStyle = "full" | "long" | "medium" | "short"
@@ -53,7 +57,7 @@ export type NodePropsMap = {
   date: { template: DateTemplate; dateStyle: DateStyle; size: number }
   greeting: { text: string; dynamic: boolean; size: number }
   search: { placeholder: string; engine: SearchEngine }
-  links: { items: QuickLink[] }
+  links: { items: QuickLink[]; template: LinksTemplate; size: number }
   quote: { text: string; author: string; size: number }
   note: { text: string; size: number }
   countdown: { template: CountdownTemplate; label: string; target: string; size: number }
@@ -148,10 +152,12 @@ export const COMPONENT_CATALOG: { [K in ComponentType]: CatalogEntry<K> }[Compon
     icon: Link2,
     defaultWidth: 60,
     defaultProps: () => ({
+      template: "pills",
+      size: 22,
       items: [
-        { id: "l1", label: "GitHub", url: "https://github.com" },
-        { id: "l2", label: "Gmail", url: "https://mail.google.com" },
-        { id: "l3", label: "YouTube", url: "https://youtube.com" },
+        { id: "l1", label: "GitHub", url: "https://github.com", icon: "auto" },
+        { id: "l2", label: "Gmail", url: "https://mail.google.com", icon: "auto" },
+        { id: "l3", label: "YouTube", url: "https://youtube.com", icon: "auto" },
       ],
     }),
   },
@@ -277,7 +283,7 @@ export function createNode<K extends ComponentType>(
 }
 
 export function createQuickLink(): QuickLink {
-  return { id: newId(), label: "New link", url: "https://example.com" }
+  return { id: newId(), label: "New link", url: "https://example.com", icon: "auto" }
 }
 
 export function createRecentPage(): RecentPage {

@@ -23,6 +23,7 @@ export type ClockTemplate =
 export type DateTemplate = "plain" | "stacked" | "badge" | "calendar"
 export type WeatherTemplate = "card" | "compact" | "stacked" | "detailed"
 export type CountdownTemplate = "plain" | "stacked" | "tile" | "units"
+export type LinksTemplate = "pills" | "icons-row" | "icons-column"
 
 export const CLOCK_TEMPLATES: TemplateDef<ClockTemplate>[] = [
   { id: "digital-plain", label: "Plain", group: "Digital" },
@@ -54,6 +55,15 @@ export const COUNTDOWN_TEMPLATES: TemplateDef<CountdownTemplate>[] = [
   { id: "tile", label: "Tile" },
   { id: "units", label: "Units" },
 ]
+
+export const LINKS_TEMPLATES: TemplateDef<LinksTemplate>[] = [
+  { id: "pills", label: "Labelled pills" },
+  { id: "icons-row", label: "Icons — row" },
+  { id: "icons-column", label: "Icons — column" },
+]
+
+/** Icon-only templates hide labels, so the glyph carries the whole link. */
+export const isIconsOnly = (template: LinksTemplate) => template !== "pills"
 
 export const isAnalog = (template: ClockTemplate) => template.startsWith("analog")
 

@@ -1,3 +1,4 @@
+import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -10,6 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ExtensionInspector from "@/features/settings/ExtensionInspector"
+import { useImageStatus } from "@/features/settings/useImageStatus"
 import { ColorField, Field, SliderField, ToggleRow } from "@/features/settings/fields"
 import {
   PRESETS,
@@ -33,6 +35,46 @@ const FONTS: { value: FontChoice; label: string }[] = [
 
 /** Radii at or above this are treated as fully rounded "pill" corners. */
 const PILL_RADIUS = 999
+
+/** A background that fails to load leaves the stage blank, so say so explicitly. */
+function BackgroundImageField() {
+  const backgroundImage = useDesignerStore((s) => s.page.backgroundImage)
+  const setPage = useDesignerStore((s) => s.setPage)
+  const status = useImageStatus(backgroundImage)
+
+  return (
+    <Field label="Image URL" hint="Any direct link to a .jpg, .png, or .webp file.">
+      <Input
+        value={backgroundImage}
+        placeholder="https://images.example.com/wallpaper.jpg"
+        onChange={(e) => setPage("backgroundImage", e.target.value)}
+      />
+
+      {status.state === "checking" && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" />
+          Checking the image…
+        </p>
+      )}
+
+      {status.state === "ok" && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CheckCircle2 className="size-3.5 text-emerald-500" />
+          Loaded — {status.width} × {status.height}
+        </p>
+      )}
+
+      {status.state === "error" && (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            This image can&apos;t be loaded. {status.hint}
+          </span>
+        </p>
+      )}
+    </Field>
+  )
+}
 
 export default function PageInspector() {
   const page = useDesignerStore((s) => s.page)
@@ -122,15 +164,7 @@ export default function PageInspector() {
             </>
           )}
 
-          {page.backgroundKind === "image" && (
-            <Field label="Image URL" hint="Any direct link to a .jpg, .png, or .webp file.">
-              <Input
-                value={page.backgroundImage}
-                placeholder="https://images.example.com/wallpaper.jpg"
-                onChange={(e) => setPage("backgroundImage", e.target.value)}
-              />
-            </Field>
-          )}
+          {page.backgroundKind === "image" && <BackgroundImageField />}
 
           <SliderField
             label="Dim overlay"

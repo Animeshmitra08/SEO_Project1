@@ -3,6 +3,7 @@ import type { CSSProperties } from "react"
 import { Search } from "lucide-react"
 import { FONT_STACKS, formatDate, formatTime, surfaceCss } from "@/lib/design"
 import { WEATHER_ICON_SVG, WEATHER_LABELS } from "@/lib/icons"
+import { LINK_ICON_SVG, resolveLinkIcon } from "@/lib/linkIcons"
 import {
   ANALOG_HANDS,
   analogAngles,
@@ -11,6 +12,7 @@ import {
   countdownParts,
   dateParts,
   isAnalog,
+  isIconsOnly,
 } from "@/lib/templates"
 import {
   greetingFor,
@@ -18,6 +20,7 @@ import {
   initialOf,
   type CanvasNode,
   type NodeOf,
+  type QuickLink,
 } from "@/lib/nodes"
 import type { PageConfig } from "@/store/useDesignerStore"
 
@@ -32,6 +35,19 @@ function Glyph({ svg, style }: { svg: string; style?: CSSProperties }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       style={style}
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  )
+}
+
+/** Brand marks are solid single-colour paths, unlike the stroked lucide glyphs. */
+function BrandGlyph({ svg, size }: { svg: string; size: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      style={{ width: size, height: size }}
       aria-hidden
       dangerouslySetInnerHTML={{ __html: svg }}
     />
@@ -310,10 +326,57 @@ function SearchView({ node, page }: { node: NodeOf<"search">; page: PageConfig }
   )
 }
 
+function LinkIconTile({
+  link,
+  size,
+  page,
+}: {
+  link: QuickLink
+  size: number
+  page: PageConfig
+}) {
+  const icon = resolveLinkIcon(link.icon, link.url)
+
+  return (
+    <span
+      title={link.label}
+      className="grid shrink-0 place-items-center"
+      style={{
+        ...surfaceCss(page),
+        width: size * 2,
+        height: size * 2,
+        borderRadius: Math.min(page.radius, size),
+      }}
+    >
+      {icon === "letter" ? (
+        <span style={{ fontSize: size * 0.9, fontWeight: 600 }}>{initialOf(link.url)}</span>
+      ) : (
+        <BrandGlyph svg={LINK_ICON_SVG[icon]} size={size} />
+      )}
+    </span>
+  )
+}
+
 function LinksView({ node, page }: { node: NodeOf<"links">; page: PageConfig }) {
+  const { items, template, size } = node.props
+
+  if (isIconsOnly(template)) {
+    const column = template === "icons-column"
+    return (
+      <div
+        className={`flex items-center justify-center ${column ? "flex-col" : "flex-wrap"}`}
+        style={{ gap: size * 0.6 }}
+      >
+        {items.map((link) => (
+          <LinkIconTile key={link.id} link={link} size={size} page={page} />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-wrap justify-center gap-2.5">
-      {node.props.items.map((link) => (
+      {items.map((link) => (
         <span
           key={link.id}
           className="px-4 py-2 text-sm"

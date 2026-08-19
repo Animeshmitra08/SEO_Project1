@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import type { LinkIconChoice } from "@/lib/linkIcons"
 import {
   createNode,
   createQuickLink,
@@ -71,7 +72,11 @@ type DesignerActions = {
 
   /* Quick-link helpers, scoped to a links node */
   addLinkTo: (nodeId: string) => void
-  updateLinkIn: (nodeId: string, linkId: string, patch: { label?: string; url?: string }) => void
+  updateLinkIn: (
+    nodeId: string,
+    linkId: string,
+    patch: { label?: string; url?: string; icon?: LinkIconChoice }
+  ) => void
   removeLinkFrom: (nodeId: string, linkId: string) => void
 }
 
@@ -303,7 +308,7 @@ export const useDesignerStore = create<DesignerState>((set) => ({
     set((state) => ({
       nodes: patchNode(state.nodes, nodeId, (node) =>
         node.type === "links"
-          ? { ...node, props: { items: [...node.props.items, createQuickLink()] } }
+          ? { ...node, props: { ...node.props, items: [...node.props.items, createQuickLink()] } }
           : node
       ),
     })),
@@ -315,6 +320,7 @@ export const useDesignerStore = create<DesignerState>((set) => ({
           ? {
               ...node,
               props: {
+                ...node.props,
                 items: node.props.items.map((link) =>
                   link.id === linkId ? { ...link, ...patch } : link
                 ),
@@ -328,7 +334,10 @@ export const useDesignerStore = create<DesignerState>((set) => ({
     set((state) => ({
       nodes: patchNode(state.nodes, nodeId, (node) =>
         node.type === "links"
-          ? { ...node, props: { items: node.props.items.filter((l) => l.id !== linkId) } }
+          ? {
+              ...node,
+              props: { ...node.props, items: node.props.items.filter((l) => l.id !== linkId) },
+            }
           : node
       ),
     })),

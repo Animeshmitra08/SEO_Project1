@@ -15,18 +15,29 @@ import {
   CLOCK_TEMPLATES,
   COUNTDOWN_TEMPLATES,
   DATE_TEMPLATES,
+  LINKS_TEMPLATES,
   WEATHER_TEMPLATES,
   isAnalog,
+  isIconsOnly,
   type ClockTemplate,
   type CountdownTemplate,
   type DateTemplate,
+  type LinksTemplate,
   type WeatherTemplate,
 } from "@/lib/templates"
+import {
+  LINK_ICON_IDS,
+  LINK_ICON_LABELS,
+  LINK_ICON_SVG,
+  detectLinkIcon,
+  type LinkIconChoice,
+} from "@/lib/linkIcons"
 import { WEATHER_CONDITIONS, WEATHER_LABELS, type WeatherCondition } from "@/lib/icons"
 import {
   SEARCH_ENGINES,
   catalogEntry,
   createRecentPage,
+  initialOf,
   type CanvasNode,
   type DateStyle,
   type NodeOf,
@@ -284,45 +295,111 @@ function SearchProps({ node }: { node: NodeOf<"search"> }) {
   )
 }
 
+/** Preview swatch for the icon picker — matches what the canvas will draw. */
+function IconPreview({ icon, url }: { icon: LinkIconChoice; url: string }) {
+  const resolved = icon === "auto" ? detectLinkIcon(url) : icon
+
+  if (resolved === "letter") {
+    return <span className="text-xs font-semibold">{initialOf(url)}</span>
+  }
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="size-4"
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: LINK_ICON_SVG[resolved] }}
+    />
+  )
+}
+
 function LinksProps({ node }: { node: NodeOf<"links"> }) {
+  const updateProps = useDesignerStore((s) => s.updateProps)
   const addLinkTo = useDesignerStore((s) => s.addLinkTo)
   const updateLinkIn = useDesignerStore((s) => s.updateLinkIn)
   const removeLinkFrom = useDesignerStore((s) => s.removeLinkFrom)
 
-  return (
-    <div className="space-y-2">
-      {node.props.items.map((link) => (
-        <div key={link.id} className="flex items-start gap-1.5">
-          <div className="grid flex-1 gap-1.5">
-            <Input
-              value={link.label}
-              placeholder="Label"
-              className="h-8"
-              onChange={(e) => updateLinkIn(node.id, link.id, { label: e.target.value })}
-            />
-            <Input
-              value={link.url}
-              placeholder="https://"
-              className="h-8 text-xs text-muted-foreground"
-              onChange={(e) => updateLinkIn(node.id, link.id, { url: e.target.value })}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => removeLinkFrom(node.id, link.id)}
-            aria-label={`Remove ${link.label}`}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-      ))}
+  const iconsOnly = isIconsOnly(node.props.template)
 
-      <Button variant="outline" size="sm" className="w-full" onClick={() => addLinkTo(node.id)}>
-        <Plus className="size-4" />
-        Add link
-      </Button>
+  return (
+    <div className="space-y-5">
+      <TemplatePicker
+        templates={LINKS_TEMPLATES}
+        value={node.props.template}
+        onChange={(template: LinksTemplate) => updateProps(node, { template })}
+      />
+
+      {iconsOnly && (
+        <SliderField
+          label="Icon size"
+          value={node.props.size}
+          min={14}
+          max={48}
+          suffix="px"
+          onChange={(size) => updateProps(node, { size })}
+        />
+      )}
+
+      <Separator />
+
+      <div className="space-y-2">
+        {node.props.items.map((link) => (
+          <div key={link.id} className="flex items-start gap-1.5">
+            <div className="grid flex-1 gap-1.5">
+              <div className="flex gap-1.5">
+                <Input
+                  value={link.label}
+                  placeholder="Label"
+                  className="h-8"
+                  onChange={(e) => updateLinkIn(node.id, link.id, { label: e.target.value })}
+                />
+                {iconsOnly && (
+                  <Select
+                    value={link.icon}
+                    onValueChange={(icon) =>
+                      updateLinkIn(node.id, link.id, { icon: icon as LinkIconChoice })
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-[3.75rem] shrink-0 px-2" aria-label="Icon">
+                      <IconPreview icon={link.icon} url={link.url} />
+                    </SelectTrigger>
+                    {/* Popper + a capped height: the list is far too long to align to the trigger. */}
+                    <SelectContent position="popper" align="end" className="max-h-72">
+                      <SelectItem value="auto">Auto — from URL</SelectItem>
+                      {LINK_ICON_IDS.map((id) => (
+                        <SelectItem key={id} value={id}>
+                          <IconPreview icon={id} url={link.url} />
+                          {LINK_ICON_LABELS[id]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <Input
+                value={link.url}
+                placeholder="https://"
+                className="h-8 text-xs text-muted-foreground"
+                onChange={(e) => updateLinkIn(node.id, link.id, { url: e.target.value })}
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => removeLinkFrom(node.id, link.id)}
+              aria-label={`Remove ${link.label}`}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        ))}
+
+        <Button variant="outline" size="sm" className="w-full" onClick={() => addLinkTo(node.id)}>
+          <Plus className="size-4" />
+          Add link
+        </Button>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { FONT_STACKS, backgroundCss, fontStack, surfaceCss } from "@/lib/design"
 import { SVG_ATTRS, WEATHER_ICON_SVG, WEATHER_LABELS } from "@/lib/icons"
+import { LINK_ICON_SVG, resolveLinkIcon } from "@/lib/linkIcons"
 import {
   SEARCH_ENGINES,
   hostnameOf,
@@ -7,7 +8,7 @@ import {
   type CanvasNode,
   type NodeOf,
 } from "@/lib/nodes"
-import { ANALOG_HANDS, analogFaceSvg, isAnalog } from "@/lib/templates"
+import { ANALOG_HANDS, analogFaceSvg, isAnalog, isIconsOnly } from "@/lib/templates"
 import {
   useDesignerStore,
   type ExtensionConfig,
@@ -144,9 +145,30 @@ function searchHtml(node: NodeOf<"search">): string {
       </form>`
 }
 
-function linksHtml(node: NodeOf<"links">): string {
-  if (node.props.items.length === 0) return ""
-  const anchors = node.props.items
+function linksHtml(node: NodeOf<"links">, page: PageConfig): string {
+  const { items, template, size } = node.props
+  if (items.length === 0) return ""
+
+  if (isIconsOnly(template)) {
+    const tiles = items
+      .map((link) => {
+        const icon = resolveLinkIcon(link.icon, link.url)
+        const glyph =
+          icon === "letter"
+            ? `<span class="link-initial" style="font-size:${(size * 0.9).toFixed(1)}px">${escapeHtml(initialOf(link.url))}</span>`
+            : `<svg viewBox="0 0 24 24" fill="currentColor" style="width:${size}px;height:${size}px" aria-hidden="true">${LINK_ICON_SVG[icon]}</svg>`
+
+        return `<a class="link-icon" href="${escapeHtml(safeUrl(link.url))}" title="${escapeHtml(link.label)}" aria-label="${escapeHtml(link.label)}" style="width:${size * 2}px;height:${size * 2}px;border-radius:${Math.min(page.radius, size)}px">${glyph}</a>`
+      })
+      .join("\n        ")
+
+    const layout = template === "icons-column" ? " links-icons-col" : ""
+    return `<nav class="links-icons${layout}" style="gap:${(size * 0.6).toFixed(1)}px">
+        ${tiles}
+      </nav>`
+  }
+
+  const anchors = items
     .map((link) => `<a href="${escapeHtml(safeUrl(link.url))}">${escapeHtml(link.label)}</a>`)
     .join("\n        ")
   return `<nav class="links">\n        ${anchors}\n      </nav>`
@@ -302,7 +324,7 @@ function nodeBodyHtml(node: CanvasNode, page: PageConfig): string {
     case "search":
       return searchHtml(node)
     case "links":
-      return linksHtml(node)
+      return linksHtml(node, page)
     case "quote":
       return quoteHtml(node)
     case "note":
@@ -676,6 +698,24 @@ body {
 }
 
 .links a:hover { transform: translateY(-1px); border-color: ${page.accent}; }
+
+.links-icons { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; }
+
+.links-icons-col { flex-direction: column; flex-wrap: nowrap; }
+
+.link-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  ${surfaceDeclarations(page)};
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.link-icon:hover { transform: translateY(-1px); border-color: ${page.accent}; }
+
+.link-initial { font-weight: 600; line-height: 1; }
 `
 }
 
